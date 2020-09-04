@@ -2,12 +2,23 @@
 
 import sys
 
+# Set insturction codes
+HLT = 0b00000001
+PRN = 0b01000111
+LDI = 0b10000010
+
 class CPU:
     """Main CPU class."""
 
     def __init__(self):
         """Construct a new CPU."""
-        pass
+        # Step 1
+        self.ram = [0] * 256 # 256 Bytes of memory 
+        self.reg = [0] * 8 # 8 Generatl purpose registers
+        self.pc = 0 # Program Counter, address of the currently executing instruction
+        self.running = True # For when the cpu is running
+        ###...
+
 
     def load(self):
         """Load a program into memory."""
@@ -30,6 +41,15 @@ class CPU:
             self.ram[address] = instruction
             address += 1
 
+    # Step 2
+    def ram_read(self, MAR):
+        # return MAR (address) MDR (value)
+        return self.ram[MAR]
+
+    def ram_write(self, MDR, MAR):
+        # write MDR (value) to MAR (address
+        self.ram[MAR] = MDR
+    ###...
 
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
@@ -62,4 +82,34 @@ class CPU:
 
     def run(self):
         """Run the CPU."""
-        pass
+        # Step 3
+        # While CPU is running
+        while self.running:
+            # Read the memory address stored in register PC
+            # store in IR (instruction register - local variable)
+            IR = self.ram_read(self.pc)
+
+            # Read bytes at pc + 1 and pc + 2 and store into operand_a and operand_b
+            operand_a = self.ram_read(self.pc + 1)
+            operand_b = self.ram_read(self.pc + 2)
+
+            # Step 5
+            # Perform actions needed based on given opcode (if-elif statements)
+            # Ppdate pc to point to next instruction
+            if IR == LDI:
+                # Load "immediate", store a value in a register, or "set this register to this value"
+                # Register location is byte at pc + 1 (operand_a)
+                # Value is byte at pc + 2 (operand_b)
+                self.reg[operand_a] = operand_b
+                self.pc += 3
+            # Step 6
+            elif IR == PRN:
+                # Prints the numeric value stored in a register
+                # Register location is byte at pc + 1 (operand_a)
+                print(self.reg[operand_a])
+                self.pc += 2
+            # Step 4
+            # Exit the loop if a HLT instruction is encountered (no matter what comes next)
+            elif IR == HLT:
+                self.running = False
+                self.pc += 1
