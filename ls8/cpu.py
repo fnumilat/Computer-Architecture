@@ -1,11 +1,6 @@
 """CPU functionality."""
-
 import sys
 
-# Set insturction codes
-HLT = 0b00000001
-PRN = 0b01000111
-LDI = 0b10000010
 
 class CPU:
     """Main CPU class."""
@@ -15,9 +10,21 @@ class CPU:
         # Step 1
         self.ram = [0] * 256 # 256 Bytes of memory 
         self.reg = [0] * 8 # 8 Generatl purpose registers
-        self.pc = 0 # Program Counter, address of the currently executing instruction
+        self.pc = 0 # Program Counter (Internal Register), address of the currently executing instruction
         self.running = True # For when the cpu is running
+        self.opcode = {
+            # Set insturction codes
+            'HLT': 0b00000001,
+            'LDI': 0b10000010,
+            'PRN': 0b01000111,
+            'MUL': 0b10100010
+        }
         ###...
+    
+    # Get file name from command line arguments
+    if len(sys.argv) != 2:
+        print("Usage: cpu.py filename")
+        sys.exit(1)
 
 
     def load(self):
@@ -27,28 +34,50 @@ class CPU:
 
         # For now, we've just hardcoded a program:
 
-        program = [
-            # From print8.ls8
-            0b10000010, # LDI R0,8
-            0b00000000,
-            0b00001000,
-            0b01000111, # PRN R0
-            0b00000000,
-            0b00000001, # HLT
-        ]
+        # program = [
+        #     # From print8.ls8
+        #     0b10000010, # LDI R0,8
+        #     0b00000000,
+        #     0b00001000,
+        #     0b01000111, # PRN R0
+        #     0b00000000,
+        #     0b00000001, # HLT
+        # ]
 
-        for instruction in program:
-            self.ram[address] = instruction
-            address += 1
+        # # Step 7
+        # Get file name from command line arguments
+        filename = sys.argv[1]
 
+        # Open the file with the given filename
+        with open(filename)as f:
+            # Go through each lines of the file
+            for line in f:
+                # Split the lines and their comments
+                line = line.split("#")
+                # Remove the white space and the n/ character
+                opcode = line[0].strip()
+                # Make sure that the value before the # symbol is not empty
+                if opcode == "":
+                    continue
+                # Convert binary to string
+                # and load it in to the memory
+                num = int(opcode, 2)
+                self.ram_write(num, address)
+                address += 1
+            
     # Step 2
+    # It accepts the address to read and return the value stored there
     def ram_read(self, MAR):
         # return MAR (address) MDR (value)
         return self.ram[MAR]
 
+    # It accepts a value to write, and the address to write it to.
     def ram_write(self, MDR, MAR):
         # write MDR (value) to MAR (address
         self.ram[MAR] = MDR
+
+    # MAR = Memory Address Register
+    # MDR = Memory Data Register
     ###...
 
     def alu(self, op, reg_a, reg_b):
@@ -57,6 +86,9 @@ class CPU:
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
         #elif op == "SUB": etc
+        # Part of Step 8
+        elif op == "MUL":
+            self.reg[reg_a] *= self.reg[reg_b]
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -85,31 +117,38 @@ class CPU:
         # Step 3
         # While CPU is running
         while self.running:
-            # Read the memory address stored in register PC
+            # Read the memory address stored in register PC, and
             # store in IR (instruction register - local variable)
             IR = self.ram_read(self.pc)
 
+            # Some instructions requires up to the next two bytes of data after the PC in memory to perform operations on
             # Read bytes at pc + 1 and pc + 2 and store into operand_a and operand_b
             operand_a = self.ram_read(self.pc + 1)
             operand_b = self.ram_read(self.pc + 2)
 
             # Step 5
             # Perform actions needed based on given opcode (if-elif statements)
-            # Ppdate pc to point to next instruction
-            if IR == LDI:
+            # Update pc to point to next instruction
+            if IR == self.opcode['LDI']:
                 # Load "immediate", store a value in a register, or "set this register to this value"
                 # Register location is byte at pc + 1 (operand_a)
                 # Value is byte at pc + 2 (operand_b)
                 self.reg[operand_a] = operand_b
                 self.pc += 3
             # Step 6
-            elif IR == PRN:
+            elif IR ==  self.opcode['PRN']:
                 # Prints the numeric value stored in a register
                 # Register location is byte at pc + 1 (operand_a)
                 print(self.reg[operand_a])
                 self.pc += 2
             # Step 4
             # Exit the loop if a HLT instruction is encountered (no matter what comes next)
-            elif IR == HLT:
+            elif IR ==  self.opcode['HLT']:
                 self.running = False
                 self.pc += 1
+            # Step 8
+            elif IR == self.opcode['MUL']:
+                # Call the alu function, use the multiply method and pass in the operand_a
+                # and operand_b to get the multiplication done
+                self.alu('MUL', operand_a, operand_b)
+                self.pc += 3
