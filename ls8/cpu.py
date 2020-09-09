@@ -2,22 +2,32 @@
 import sys
 
 
+# OP CODES
+HLT = 0b00000001
+LDI = 0b10000010
+PRN = 0b01000111
+PUSH = 0b01000101
+POP = 0b01000110
+ADD = 0b10100000
+MUL = 0b10100010
+
 class CPU:
     """Main CPU class."""
 
     def __init__(self):
         """Construct a new CPU."""
-        # Step 1
         self.ram = [0] * 256 # 256 Bytes of memory 
         self.reg = [0] * 8 # 8 Generatl purpose registers
         self.pc = 0 # Program Counter (Internal Register), address of the currently executing instruction
+        self.sp = 244 # Stack pointer, set to F4 on initialization
+        self.reg[7] = self.sp
         self.running = True # For when the cpu is running
-        self.opcode = {
-            # Set insturction codes
-            'HLT': 0b00000001,
-            'LDI': 0b10000010,
-            'PRN': 0b01000111,
-            'MUL': 0b10100010
+        self.bt = { # Branch Table
+            HLT: self.op_hlt,
+            LDI: self.op_ldi,
+            PRN: self.op_prn,
+            PUSH: self.op_push,
+            POP: self.op_pop
         }
         ###...
     
@@ -44,7 +54,6 @@ class CPU:
         #     0b00000001, # HLT
         # ]
 
-        # # Step 7
         # Get file name from command line arguments
         filename = sys.argv[1]
 
@@ -65,7 +74,6 @@ class CPU:
                 self.ram_write(num, address)
                 address += 1
             
-    # Step 2
     # It accepts the address to read and return the value stored there
     def ram_read(self, MAR):
         # return MAR (address) MDR (value)
@@ -83,11 +91,10 @@ class CPU:
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
 
-        if op == "ADD":
+        if op == ADD:
             self.reg[reg_a] += self.reg[reg_b]
         #elif op == "SUB": etc
-        # Part of Step 8
-        elif op == "MUL":
+        elif op == MUL:
             self.reg[reg_a] *= self.reg[reg_b]
         else:
             raise Exception("Unsupported ALU operation")
@@ -111,10 +118,34 @@ class CPU:
             print(" %02X" % self.reg[i], end='')
 
         print()
+    
+    def op_hlt(self, operand_a, operand_b):
+        # Exit the loop (no matter what comes next)
+        self.running = False
+    def op_ldi(self, operand_a, operand_b):
+        # Load "immediate", store a value in a register, or "set this register to this value"
+        # Register location is byte at pc + 1 (operand_a)
+        # Value is byte at pc + 2 (operand_b)
+        self.reg[operand_a] = operand_b
+    def op_prn(self, operand_a, operand_b):
+        # Prints the numeric value stored in a register
+        # Register location is byte at pc + 1 (operand_a)
+        print(self.reg[operand_a])
+    def op_push(self, operand_a, operand_b):
+        # Decrement the stack pointer by 1
+        self.sp -= 1
+        # Write the value from the given register and that the stack pointer is set to the memory
+        self.ram_write(self.reg[operand_a], self.sp)
+    def op_pop(self, operand_a, operand_b):
+        # Get the stack pointer in the memory and create a new var called 'value'
+        value = self.ram_read(self.sp)
+        # Set the value from the given register to the new var 'value'
+        self.reg[operand_a] = value
+        # Increment the stack pointer by 1
+        self.sp += 1
 
     def run(self):
         """Run the CPU."""
-        # Step 3
         # While CPU is running
         while self.running:
             # Read the memory address stored in register PC, and
@@ -126,29 +157,20 @@ class CPU:
             operand_a = self.ram_read(self.pc + 1)
             operand_b = self.ram_read(self.pc + 2)
 
-            # Step 5
-            # Perform actions needed based on given opcode (if-elif statements)
+            # Determine if IR is an ALU operation
+            isALU = (IR >> 5) & 0b00000001
+
+            # Dispatch ALU operations to alu function
+            if isALU == 1:
+                self.alu(IR, operand_a, operand_b)
+            # Perform actions needed based on given opcode (branch table)
+            else:
+                if IR in self.bt:
+                    self.bt[IR](operand_a, operand_b)
+
+            # Determine number of operands
+            num_operands = IR >> 6
             # Update pc to point to next instruction
-            if IR == self.opcode['LDI']:
-                # Load "immediate", store a value in a register, or "set this register to this value"
-                # Register location is byte at pc + 1 (operand_a)
-                # Value is byte at pc + 2 (operand_b)
-                self.reg[operand_a] = operand_b
-                self.pc += 3
-            # Step 6
-            elif IR ==  self.opcode['PRN']:
-                # Prints the numeric value stored in a register
-                # Register location is byte at pc + 1 (operand_a)
-                print(self.reg[operand_a])
-                self.pc += 2
-            # Step 4
-            # Exit the loop if a HLT instruction is encountered (no matter what comes next)
-            elif IR ==  self.opcode['HLT']:
-                self.running = False
-                self.pc += 1
-            # Step 8
-            elif IR == self.opcode['MUL']:
-                # Call the alu function, use the multiply method and pass in the operand_a
-                # and operand_b to get the multiplication done
-                self.alu('MUL', operand_a, operand_b)
-                self.pc += 3
+            self.pc += num_operands + 1
+
+   
