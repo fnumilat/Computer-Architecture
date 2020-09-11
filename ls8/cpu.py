@@ -8,6 +8,9 @@ LDI = 0b10000010
 PRN = 0b01000111
 PUSH = 0b01000101
 POP = 0b01000110
+CALL = 0b01010000
+JMP = 0b01010100
+RET = 0b00010001
 ADD = 0b10100000
 MUL = 0b10100010
 
@@ -27,7 +30,9 @@ class CPU:
             LDI: self.op_ldi,
             PRN: self.op_prn,
             PUSH: self.op_push,
-            POP: self.op_pop
+            POP: self.op_pop,
+            CALL: self.op_call,
+            RET : self.op_ret
         }
         ###...
     
@@ -143,6 +148,23 @@ class CPU:
         self.reg[operand_a] = value
         # Increment the stack pointer by 1
         self.sp += 1
+    def op_call(self, operand_a, operand_b):
+        # Push the address of the instruction directly after CALL (pc + 2)
+        # Decrement the stack pointer by 1
+        self.sp -= 1
+        # Write the return address to memory at the SP location
+        self.ram_write(self.pc + 2, self.sp)
+        # Set PC to the address stored in the given register
+        self.pc = self.reg[operand_a]
+    def op_jmp(self, operand_a, operand_b):
+        # Set PC to the address stored in the given register
+        self.pc = self.reg[operand_a]
+    def op_ret(self, operand_a, operand_b):
+        # Pop the value from the top of the stack and store it in the PC
+        self.pc = self.ram_read(self.sp)
+        # Increment the stack pointer
+        self.sp += 1
+        
 
     def run(self):
         """Run the CPU."""
@@ -167,10 +189,14 @@ class CPU:
             else:
                 if IR in self.bt:
                     self.bt[IR](operand_a, operand_b)
+            
+            # Update pc to point to next instruction (if the instruction doesn't set the PC)
+            setsPc = (IR >> 4) & 0b00000001
 
-            # Determine number of operands
-            num_operands = IR >> 6
-            # Update pc to point to next instruction
-            self.pc += num_operands + 1
+            if setsPc == 0:
+                # Determine number of operands
+                num_operands = IR >> 6
+                # Update pc to point to next instruction
+                self.pc += num_operands + 1
 
    
